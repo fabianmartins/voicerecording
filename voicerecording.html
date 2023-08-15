@@ -71,7 +71,6 @@
 
             mediaRecorder.onstop = () => {
                 console.log("Recording stopped.");
-                showBase64();
             };
 
             mediaRecorder.start();
@@ -81,6 +80,7 @@
         const stopRecording = () => {
             if (mediaRecorder && mediaRecorder.state !== "inactive") {
                 mediaRecorder.stop();
+                mediaRecorder.
                 afterStop();
             }
         };
@@ -95,12 +95,8 @@
 
                     reader.onload = () => {
                         base64AudioData = reader.result.split(",")[1];
-                        document.getElementById("showB64Button").disabled = false;
-                        document.getElementById("playButton").disabled = false;
-                        document.getElementById("downloadButton").disabled = false;
                         console.log(base64AudioData);
                     };
-
                     reader.readAsDataURL(blob);
                 }
             }
@@ -151,9 +147,6 @@
                     const mp3Blob = await encodeToMp3(webmArrayBuffer);
                     convertedMP3 = mp3Blob;
                     b64mp3 = null; // Clear the previous MP3 base64 data
-                    document.getElementById("mp3ToB64Button").disabled = false;
-                    document.getElementById("showMp3B64Button").disabled = true;
-                    document.getElementById("downloadMp3Button").disabled = true;
                     console.log("Conversion to MP3 completed.");
                     afterConvertToMp3();
                 };
@@ -222,11 +215,6 @@
                 a.click();
             }
         };
-
- //       const base64ArrayBuffer = (arrayBuffer) => {
- //           const base64 = btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)));
- //           return base64;
- //       };
 
 
         document.getElementById("recordButton").addEventListener("click", startRecording);
