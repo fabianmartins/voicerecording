@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Audio Recorder</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.all.min.js"></script>
+</head>
+
+<body>
+    <button id="recordButton">Record</button>
+    <button id="stopButton">Stop</button>
+    <button id="showB64Button">ShowB64</button>
+    <button id="playButton">Play</button>
+    <button id="downloadButton">Download</button>
+    <button id="toMp3Button">To MP3</button>
+    <button id="mp3ToB64Button">MP3 to B64</button>
+    <button id="showMp3B64Button">Show MP3 in B64</button>
+    <button id="downloadMp3Button">Download MP3</button>
+
+    <script>
+        let mediaRecorder;
+        let recordedChunks = [];
+        let audioElement = new Audio();
+        let base64AudioData = '';
+        let convertedMP3;
+        let b64mp3 = '';
+
+        const init = () => {
+            document.getElementById("showB64Button").disabled = true;
+            document.getElementById("playButton").disabled = true;
+            document.getElementById("downloadButton").disabled = true;
+            document.getElementById("playButton").disabled = true;
+            document.getElementById("toMp3Button").disabled = true;
+            document.getElementById("showMp3B64Button").disabled = true;
+            document.getElementById("downloadMp3Button").disabled = true;
+            document.getElementById("mp3ToB64Button").disabled = true;
+        }
+        init();
+
+        const afterStop = () => {
+            document.getElementById("showB64Button").disabled = false;
+            document.getElementById("playButton").disabled = false;
+            document.getElementById("downloadButton").disabled = false;
+            document.getElementById("playButton").disabled = false;
+            document.getElementById("toMp3Button").disabled = false;
+            document.getElementById("showMp3B64Button").disabled = true;
+            document.getElementById("downloadMp3Button").disabled = true;
+            document.getElementById("mp3ToB64Button").disabled = true;
+        }
+
+        const afterConvertToMp3 = () => {
+            document.getElementById("showB64Button").disabled = false;
+            document.getElementById("playButton").disabled = false;
+            document.getElementById("downloadButton").disabled = false;
+            document.getElementById("playButton").disabled = false;
+            document.getElementById("toMp3Button").disabled = false;
+            document.getElementById("showMp3B64Button").disabled = false;
+            document.getElementById("downloadMp3Button").disabled = false;
+            document.getElementById("mp3ToB64Button").disabled = false;
+        }
+
+        const startRecording = async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                console.log("Recording stopped.");
+                showBase64();
+            };
+
+            mediaRecorder.start();
+            console.log("Recording started...");
+        };
+
+        const stopRecording = () => {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+                afterStop();
+            }
+        };
+
+        const showBase64 = () => {
+            if (base64AudioData.length > 0)
+                console.log(base64AudioData);
+            else {
+                if (recordedChunks.length > 0) {
+                    const blob = new Blob(recordedChunks, { type: "audio/wav" });
+                    const reader = new FileReader();
+
+                    reader.onload = () => {
+                        base64AudioData = reader.result.split(",")[1];
+                        document.getElementById("showB64Button").disabled = false;
+                        document.getElementById("playButton").disabled = false;
+                        document.getElementById("downloadButton").disabled = false;
+                        console.log(base64AudioData);
+                    };
+
+                    reader.readAsDataURL(blob);
+                }
+            }
+        };
+
+        const playAudio = () => {
+            if (base64AudioData) {
+                const audioBlob = new Blob([base64ToArrayBuffer(base64AudioData)], { type: "audio/wav" });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                audioElement.src = audioUrl;
+                audioElement.play();
+            }
+        };
+
+        const downloadAudio = () => {
+            if (base64AudioData) {
+                const decodedAudioData = atob(base64AudioData);
+                const decodedArray = new Uint8Array(decodedAudioData.length);
+                for (let i = 0; i < decodedAudioData.length; i++) {
+                    decodedArray[i] = decodedAudioData.charCodeAt(i);
+                }
+                const blob = new Blob([decodedArray], { type: "audio/wav" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "recorded_audio.wav";
+                a.click();
+            }
+        };
+
+        const base64ToArrayBuffer = (base64) => {
+            const binaryString = window.atob(base64);
+            const length = binaryString.length;
+            const buffer = new ArrayBuffer(length);
+            const view = new Uint8Array(buffer);
+            for (let i = 0; i < length; i++) {
+                view[i] = binaryString.charCodeAt(i);
+            }
+            return buffer;
+        };
+
+        const convertToMp3 = () => {
+            if (recordedChunks.length > 0) {
+                const webmBlob = new Blob(recordedChunks, { type: "audio/webm" });
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    const webmArrayBuffer = reader.result;
+                    const mp3Blob = await encodeToMp3(webmArrayBuffer);
+                    convertedMP3 = mp3Blob;
+                    b64mp3 = null; // Clear the previous MP3 base64 data
+                    document.getElementById("mp3ToB64Button").disabled = false;
+                    document.getElementById("showMp3B64Button").disabled = true;
+                    document.getElementById("downloadMp3Button").disabled = true;
+                    console.log("Conversion to MP3 completed.");
+                    afterConvertToMp3();
+                };
+                reader.readAsArrayBuffer(webmBlob);
+            } else {
+                console.log("No recorded audio to convert to MP3.");
+            }
+        };
+
+        const encodeToMp3 = async (webmArrayBuffer) => {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = await audioContext.decodeAudioData(webmArrayBuffer);
+
+            const mp3Encoder = new lamejs.Mp3Encoder(1, audioBuffer.sampleRate, 128);
+            const samples = audioBuffer.getChannelData(0);
+            const mp3Data = mp3Encoder.encodeBuffer(convertFloat32ToInt16(samples));
+            const mp3Blob = new Blob([mp3Data], { type: "audio/mp3" });
+
+            return mp3Blob;
+        };
+
+        const convertFloat32ToInt16 = (buffer) => {
+            const int16Buffer = new Int16Array(buffer.length);
+            for (let i = 0; i < buffer.length; i++) {
+                const floatValue = buffer[i];
+                const intValue = Math.max(-1, Math.min(1, floatValue)) * 0x7FFF;
+                int16Buffer[i] = intValue;
+            }
+            return int16Buffer;
+        };
+
+        const mp3ToB64 = () => {
+            if (convertedMP3) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    b64mp3 = reader.result.split(",")[1];
+                    console.log(b64mp3);
+                };
+                reader.readAsDataURL(convertedMP3);
+            } else {
+                console.log("No MP3 data available.");
+            }
+        };
+
+
+        const showMp3B64 = () => {
+            if (b64mp3) {
+                console.log(b64mp3);
+            } else {
+                mp3ToB64()
+            }
+        };
+
+        const downloadMp3 = () => {
+            if (b64mp3) {
+                const decodedMp3 = atob(b64mp3);
+                const decodedArray = new Uint8Array(decodedMp3.length);
+                for (let i = 0; i < decodedMp3.length; i++) {
+                    decodedArray[i] = decodedMp3.charCodeAt(i);
+                }
+                const blob = new Blob([decodedArray], { type: "audio/mp3" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "recorded_audio.mp3";
+                a.click();
+            }
+        };
+
+ //       const base64ArrayBuffer = (arrayBuffer) => {
+ //           const base64 = btoa(String.fromCharCode.apply(null, new Uint8Array(arrayBuffer)));
+ //           return base64;
+ //       };
+
+
+        document.getElementById("recordButton").addEventListener("click", startRecording);
+        document.getElementById("stopButton").addEventListener("click", stopRecording);
+        document.getElementById("showB64Button").addEventListener("click", showBase64);
+        document.getElementById("playButton").addEventListener("click", playAudio);
+        document.getElementById("downloadButton").addEventListener("click", downloadAudio);
+        document.getElementById("toMp3Button").addEventListener("click", convertToMp3);
+        document.getElementById("mp3ToB64Button").addEventListener("click", mp3ToB64);
+        document.getElementById("showMp3B64Button").addEventListener("click", showMp3B64);
+        document.getElementById("downloadMp3Button").addEventListener("click", downloadMp3);
+    </script>
+</body>
+
+</html>
